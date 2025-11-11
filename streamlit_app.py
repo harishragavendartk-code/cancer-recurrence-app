@@ -7,90 +7,80 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, accuracy_score
 
-# ---------------------------------------
-# Page Setup
-# ---------------------------------------
+# -------------------------------
+# Page setup
+# -------------------------------
 st.set_page_config(page_title="Cancer Prediction Web App", layout="wide")
 st.title("🧬 Cancer Prediction & Visualization Dashboard")
 
 st.markdown("""
 Predict **cancer recurrence risk** from RNA-seq data.  
-- Upload your dataset (TSV or CSV) or use the included sample dataset.  
+- Upload your dataset (TSV) or use the included sample dataset.  
 - Train a Random Forest model.  
-- Visualize gene expression, survival, and feature importance.
+- Visualize gene expression, Kaplan–Meier curves, and feature importance.
 """)
 
-# ---------------------------------------
-# Dataset Loading
-# ---------------------------------------
-choice = st.radio(
-    "Choose Dataset Source:",
-    ("Use sample dataset", "Upload my own dataset (.csv / .tsv)")
-)
-
-def load_sample_dataset():
+# -------------------------------
+# Load dataset
+# -------------------------------
+uploaded_file = st.file_uploader("📁 Upload RNA Expression TSV (optional)", type=["tsv"])
+if uploaded_file:
+    df = pd.read_csv(uploaded_file, sep="\t")
+    st.success("✅ File uploaded successfully.")
+else:
     try:
         df = pd.read_csv("sample_dataset.tsv", sep="\t")
-        st.success("✅ Loaded sample dataset (TSV format).")
-        return df
+        st.info("ℹ️ No file uploaded. Loaded default `sample_dataset.tsv`.")
     except FileNotFoundError:
-        st.error("❌ sample_dataset.tsv not found! Please generate it using generate_sample_csv.py.")
+        st.error("❌ sample_dataset.tsv not found. Please upload a dataset.")
         st.stop()
 
-# Handle dataset selection
-if choice == "Use sample dataset":
-    df = load_sample_dataset()
-else:
-    uploaded_file = st.file_uploader("📁 Upload your dataset file", type=["csv", "tsv"])
-    if uploaded_file is not None:
-        if uploaded_file.name.endswith(".tsv"):
-            df = pd.read_csv(uploaded_file, sep="\t")
-        else:
-            df = pd.read_csv(uploaded_file)
-        st.success("✅ File uploaded successfully.")
-    else:
-        st.warning("⚠️ Please upload a file to continue.")
-        st.stop()
-
-# ---------------------------------------
-# Data Preview
-# ---------------------------------------
 st.write("### 🧾 Data Preview")
 st.dataframe(df.head())
 
-# Add target column if not present
+# -------------------------------
+# Prepare data
+# -------------------------------
 if 'recurrence_risk' not in df.columns:
     df['recurrence_risk'] = np.random.choice(['High', 'Low'], len(df))
+
+if 'time' not in df.columns:
+    df['time'] = np.random.exponential(scale=400, size=len(df))
+
+if 'status' not in df.columns:
+    df['status'] = np.random.binomial(1, 0.35, size=len(df))
 
 X = df.select_dtypes(include=[np.number])
 y = df['recurrence_risk']
 
-# ---------------------------------------
-# Model Training
-# ---------------------------------------
+# -------------------------------
+# Train model
+# -------------------------------
 st.markdown("---")
-st.subheader("🤖 Train Random Forest Model")
+st.subheader("🤖 Train Machine Learning Model")
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 acc = accuracy_score(y_test, y_pred)
-
 st.write(f"**Model Accuracy:** {acc*100:.2f}%")
 
-# Confusion Matrix
+# -------------------------------
+# Confusion matrix
+# -------------------------------
 cm = confusion_matrix(y_test, y_pred, labels=["High", "Low"])
 fig_cm, ax_cm = plt.subplots()
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=["High", "Low"], yticklabels=["High", "Low"], ax=ax_cm)
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=["High", "Low"], yticklabels=["High", "Low"], ax=ax_cm)
 ax_cm.set_xlabel("Predicted")
 ax_cm.set_ylabel("Actual")
 ax_cm.set_title("Confusion Matrix")
 st.pyplot(fig_cm)
 
-# ---------------------------------------
-# Feature Importance
-# ---------------------------------------
+# -------------------------------
+# Feature importance
+# -------------------------------
 st.markdown("#### 🔬 Feature Importance (Top 10 Genes)")
 feat_imp = pd.Series(model.feature_importances_, index=X.columns).sort_values(ascending=False).head(10)
 fig_imp, ax_imp = plt.subplots()
@@ -99,9 +89,9 @@ ax_imp.set_xlabel("Importance Score")
 ax_imp.set_ylabel("Gene")
 st.pyplot(fig_imp)
 
-# ---------------------------------------
-# Gene Expression Heatmap
-# ---------------------------------------
+# -------------------------------
+# Gene expression heatmap
+# -------------------------------
 st.markdown("---")
 st.subheader("1️⃣ Gene Expression Heatmap")
 
@@ -112,9 +102,9 @@ ax1.set_xlabel("Patients")
 ax1.set_ylabel("Genes")
 st.pyplot(fig1)
 
-# ---------------------------------------
-# Kaplan–Meier Survival Curve (Simulated)
-# ---------------------------------------
+# -------------------------------
+# Kaplan–Meier curve
+# -------------------------------
 st.markdown("---")
 st.subheader("2️⃣ Kaplan–Meier Survival Curve")
 
@@ -126,11 +116,6 @@ def km_curve(time, event):
     at_risk = n - np.arange(n)
     survival = np.cumprod(1 - event / at_risk)
     return time, survival
-
-if 'time' not in df.columns:
-    df['time'] = np.random.exponential(scale=400, size=len(df))
-if 'status' not in df.columns:
-    df['status'] = np.random.binomial(1, 0.35, size=len(df))
 
 mask_high = df['recurrence_risk'] == 'High'
 mask_low = df['recurrence_risk'] == 'Low'
@@ -147,32 +132,32 @@ ax2.set_title("Kaplan–Meier Curve: High vs Low Risk")
 ax2.legend()
 st.pyplot(fig2)
 
-# ---------------------------------------
-# Simulated LASSO–Cox Coefficients
-# ---------------------------------------
+# -------------------------------
+# Simulated LASSO–Cox coefficients
+# -------------------------------
 st.markdown("---")
 st.subheader("3️⃣ LASSO–Cox Coefficient Visualization (Simulated)")
 
 coef_values = np.random.uniform(-0.5, 0.5, size=X.shape[1])
-coef_df = pd.DataFrame({'Gene': X.columns, 'Coefficient': coef_values}).sort_values(by='Coefficient', ascending=False)
+coef_df = pd.DataFrame({
+    'Gene': X.columns,
+    'Coefficient': coef_values
+}).sort_values(by='Coefficient', ascending=False)
 
 fig3, ax3 = plt.subplots(figsize=(8,6))
 sns.barplot(x='Coefficient', y='Gene', data=coef_df, palette='coolwarm', ax=ax3)
 ax3.set_title("Simulated LASSO–Cox Coefficients")
 st.pyplot(fig3)
 
-# ---------------------------------------
-# Real-Time Prediction
-# ---------------------------------------
+# -------------------------------
+# Real-time prediction
+# -------------------------------
 st.markdown("---")
 st.subheader("⚡ Predict Recurrence Risk for a New Patient")
 
-new_sample = st.file_uploader("Upload new patient data (.csv / .tsv)", type=["csv", "tsv"], key="predict")
+new_sample = st.file_uploader("Upload new patient TSV", type=["tsv"], key="predict")
 if new_sample:
-    if new_sample.name.endswith(".tsv"):
-        new_df = pd.read_csv(new_sample, sep="\t")
-    else:
-        new_df = pd.read_csv(new_sample)
+    new_df = pd.read_csv(new_sample, sep="\t")
     st.dataframe(new_df.head())
     try:
         pred = model.predict(new_df)
@@ -180,6 +165,6 @@ if new_sample:
     except Exception as e:
         st.error(f"⚠️ Error: {e}")
 else:
-    st.info("Upload a single patient TSV or CSV file to predict risk.")
+    st.info("Upload a single patient TSV to predict risk.")
 
 st.success("✅ App ready — trained model can now predict recurrence risk in real time!")
