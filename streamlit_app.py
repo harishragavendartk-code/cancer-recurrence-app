@@ -109,19 +109,23 @@ st.markdown("---")
 st.subheader("2️⃣ Kaplan–Meier Survival Curve")
 
 def km_curve(time, event):
+    # Ensure inputs are numpy arrays
+    time = np.array(time)
+    event = np.array(event)
     order = np.argsort(time)
-    time = time[order]
-    event = event[order]
-    n = len(time)
+    time_sorted = time[order]
+    event_sorted = event[order]
+    n = len(time_sorted)
     at_risk = n - np.arange(n)
-    survival = np.cumprod(1 - event / at_risk)
-    return time, survival
+    survival = np.cumprod(1 - event_sorted / at_risk)
+    return time_sorted, survival
 
+# Use .loc to avoid KeyError
 mask_high = df['recurrence_risk'] == 'High'
 mask_low = df['recurrence_risk'] == 'Low'
 
-time_high, surv_high = km_curve(df['time'][mask_high], df['status'][mask_high])
-time_low, surv_low = km_curve(df['time'][mask_low], df['status'][mask_low])
+time_high, surv_high = km_curve(df.loc[mask_high, 'time'], df.loc[mask_high, 'status'])
+time_low, surv_low = km_curve(df.loc[mask_low, 'time'], df.loc[mask_low, 'status'])
 
 fig2, ax2 = plt.subplots(figsize=(8,6))
 ax2.step(time_high, surv_high, where='post', label='High Risk', color='red')
